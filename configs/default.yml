@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------------------------
+# Flowpath-scale low-flow and hydrological drought thresholds on the NextGen hydrofabric
+# ---------------------------------------------------------------------------------------------
+
+# ---- data (NGIAB subsets used for the NeuralNGEN paper) --------------------------------------
+gauges_root: /bighome/hdagne1/Data/CAMELS_US_ngiab_full          # gage-<id>/{config/*.gpkg, forcings/forcings.nc}
+streamflow_dir: /bighome/hdagne1/Data/usgs_streamflow_ref         # <outlet_id>.parquet, column flow_m3s, daily
+basin_file: /bighome/hdagne1/NeuralNGEN/basin_lists/ready_basins_filtered_updated.txt
+interior_file: /bighome/hdagne1/NeuralNGEN/interior_gauges.csv    # outlet_gage, interior_gage, flowpath
+interior_obs_dir: /bighome/hdagne1/NeuralNGEN/obs_cache_interior  # <interior_id>.csv, columns datetime, Q_m3s
+interior_exclude_file: null                                       # optional list of interior gauges to drop (e.g. regulated)
+cache_dir: /bighome/hdagne1/conus-national-low-flow-thresholds-lstm/data/cache
+runs_dir: /bighome/hdagne1/conus-national-low-flow-thresholds-lstm/runs
+
+# ---- inputs --------------------------------------------------------------------------------
+dynamic_inputs:
+  - APCP_surface
+  - DLWRF_surface
+  - DSWRF_surface
+  - PRES_surface
+  - SPFH_2maboveground
+  - TMP_2maboveground
+  - UGRD_10maboveground
+  - VGRD_10maboveground
+precip_var: APCP_surface            # aggregated to a daily total (mm/d); all others to daily means
+static_attributes:
+  - mode.bexp_soil_layers_stag=1
+  - mode.bexp_soil_layers_stag=2
+  - mode.bexp_soil_layers_stag=3
+  - mode.bexp_soil_layers_stag=4
+  - geom_mean.dksat_soil_layers_stag=1
+  - geom_mean.dksat_soil_layers_stag=2
+  - geom_mean.dksat_soil_layers_stag=3
+  - geom_mean.dksat_soil_layers_stag=4
+  - geom_mean.psisat_soil_layers_stag=1
+  - geom_mean.psisat_soil_layers_stag=2
+  - geom_mean.psisat_soil_layers_stag=3
+  - geom_mean.psisat_soil_layers_stag=4
+  - mean.cwpvt
+  - mean.mfsno
+  - mean.mp
+  - mean.refkdt
+  - mean.slope_1km
+  - mean.smcmax_soil_layers_stag=1
+  - mean.smcmax_soil_layers_stag=2
+  - mean.smcmax_soil_layers_stag=3
+  - mean.smcmax_soil_layers_stag=4
+  - mean.smcwlt_soil_layers_stag=1
+  - mean.smcwlt_soil_layers_stag=2
+  - mean.smcwlt_soil_layers_stag=3
+  - mean.smcwlt_soil_layers_stag=4
+  - mean.vcmx25
+  - mean.Coeff
+  - mean.Zmax
+  - mode.Expon
+  - mean.impervious
+  - mean.elevation
+  - mean.slope
+  - circ_mean.aspect               # circ_mean.* attributes are averaged as unit vectors (sin, cos)
+
+# ---- threshold targets ----------------------------------------------------------------------
+threshold_period: ["2000-10-01", "2022-09-30"]   # observed flow used for the target thresholds
+min_years: 10                                    # minimum years of valid daily flow per gauge
+percentiles: [5, 10, 15, 20, 25, 30]             # non-exceedance, Weibull plotting position
+doy_window: 15                                   # +/- days pooled for day-of-year percentiles
+doy_smooth: 7                                    # circular moving average of the day-of-year curve (days)
+nqy: ["1Q2", "1Q10", "7Q2", "7Q5", "7Q10", "30Q2", "30Q5", "30Q10"]   # log-Pearson III, climate year Apr-Mar
+log_eps: 0.001                                   # mm/d added before log (zero flows)
+
+# ---- model -----------------------------------------------------------------------------------
+family: vt                     # vt = day-of-year percentiles (variable), fq = nQy frequency thresholds (fixed)
+seq_length: 365                # days of forcing per sample
+predict_last: 30               # outputs on the last N days of each window (vt targets follow their own day of year)
+hidden_size: 128
+dropout: 0.2
+initial_forget_bias: 3.0
+
+# ---- training --------------------------------------------------------------------------------
+n_folds: 5                     # cross-validation over outlet basins (each basin with all its interior gauges)
+fold: 0                        # fold held out in this run
+epochs: 30
+batches_per_epoch: 400
+batch_size: 256
+learning_rate: 1.0e-3
+lr_drops: {15: 5.0e-4, 25: 1.0e-4}
+clip_norm: 1.0
+seed: 42
+num_workers: 4
+device: cuda
+
+# ---- prediction ------------------------------------------------------------------------------
+predict_period: ["2000-10-01", "2022-09-30"]     # window end dates used to summarize the thresholds
+predict_batch: 512

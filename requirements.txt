@@ -1,0 +1,9 @@
+numpy
+pandas
+scipy
+xarray
+netCDF4
+pyarrow
+pyyaml
+torch
+pytest
