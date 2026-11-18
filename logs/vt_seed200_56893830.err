@@ -1,1 +1,0 @@
-/cm/local/apps/slurm/var/spool/job56893830/slurm_script: line 22: 1277972 Bus error               (core dumped) python src/main.py train --family vt --thresh_file data/thresholds.parquet --camels_root data/CAMELS_US/ --concat_static True --gpu 0 --seed 200 --num_workers 0
